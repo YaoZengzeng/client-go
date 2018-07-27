@@ -25,6 +25,8 @@ import (
 
 // PopProcessFunc is passed to Pop() method of Queue interface.
 // It is supposed to process the element popped from the queue.
+// PopProcessFunc会被传输给Queue接口的Pop()方法
+// 它需要处理从队列中pop出来的element
 type PopProcessFunc func(interface{}) error
 
 // ErrRequeue may be returned by a PopProcessFunc to safely requeue
@@ -90,17 +92,25 @@ func Pop(queue Queue) interface{} {
 //  * You do not want to process deleted objects, they should be removed from the queue.
 //  * You do not want to periodically reprocess objects.
 // Compare with DeltaFIFO for other use cases.
+// FIFO解决了以下case：
+//	* 处理每个对象一次
+//	* 只处理最新版本的对象
+//	* 不处理已经被删除的对象，它们应该才队列中删除
+//	* 不每隔一段时间阶段性地重复处理对象
 type FIFO struct {
 	lock sync.RWMutex
 	cond sync.Cond
 	// We depend on the property that items in the set are in the queue and vice versa.
+	// 当item在items中，则item在队列中，反之亦然
 	items map[string]interface{}
 	queue []string
 
 	// populated is true if the first batch of items inserted by Replace() has been populated
 	// or Delete/Add/Update was called first.
+	// 当Replace()插入的第一批items已经被插入的时候或者第一次调用Delete/Add/Update，populated为true
 	populated bool
 	// initialPopulationCount is the number of items inserted by the first call of Replace()
+	// initialPopulationCount是第一次调用Replace()插入的items的数量
 	initialPopulationCount int
 
 	// keyFunc is used to make the key used for queued item insertion and retrieval, and
@@ -303,12 +313,14 @@ func (f *FIFO) Replace(list []interface{}, resourceVersion string) error {
 		if err != nil {
 			return KeyError{item, err}
 		}
+		// 将list都加入item中
 		items[key] = item
 	}
 
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
+	// 如果是第一次初始化
 	if !f.populated {
 		f.populated = true
 		f.initialPopulationCount = len(items)

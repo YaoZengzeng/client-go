@@ -29,6 +29,7 @@ func testPop(f *DeltaFIFO) testFifoObject {
 }
 
 // keyLookupFunc adapts a raw function to be a KeyLookup.
+// 用一个简单的函数就实现了KeyLookup
 type keyLookupFunc func() []testFifoObject
 
 // ListKeys just calls kl.
@@ -133,6 +134,7 @@ func TestDeltaFIFO_addUpdate(t *testing.T) {
 	f := NewDeltaFIFO(testFifoObjectKeyFunc, nil)
 	f.Add(mkFifoObj("foo", 10))
 	f.Update(mkFifoObj("foo", 12))
+	// 最后一个是删除
 	f.Delete(mkFifoObj("foo", 15))
 
 	if e, a := []interface{}{mkFifoObj("foo", 15)}, f.List(); !reflect.DeepEqual(e, a) {
@@ -175,6 +177,7 @@ func TestDeltaFIFO_enqueueingNoLister(t *testing.T) {
 	f.Delete(mkFifoObj("qux", 18))
 
 	// This delete does not enqueue anything because baz doesn't exist.
+	// 这次delete并不会将任何东西入队，因为baz不存在
 	f.Delete(mkFifoObj("baz", 20))
 
 	expectList := []int{10, 15, 18}
@@ -199,6 +202,7 @@ func TestDeltaFIFO_enqueueingWithLister(t *testing.T) {
 	f.Update(mkFifoObj("bar", 15))
 
 	// This delete does enqueue the deletion, because "baz" is in the key lister.
+	// 这次delete会入队，因为"baz"在key lister中
 	f.Delete(mkFifoObj("baz", 20))
 
 	expectList := []int{10, 15, 20}
@@ -291,6 +295,7 @@ func TestDeltaFIFO_ReplaceMakesDeletions(t *testing.T) {
 		{{Sync, mkFifoObj("foo", 5)}},
 		// Since "bar" didn't have a delete event and wasn't in the Replace list
 		// it should get a tombstone key with the right Obj.
+		// 因为"bar"没有一个delete event并且不在Replace list中，因此标记一个DeletedFinalStateUnknown状态
 		{{Deleted, DeletedFinalStateUnknown{Key: "bar", Obj: mkFifoObj("bar", 6)}}},
 	}
 
@@ -309,6 +314,7 @@ func TestDeltaFIFO_UpdateResyncRace(t *testing.T) {
 			return []testFifoObject{mkFifoObj("foo", 5)}
 		}),
 	)
+	// Update并不关心某个item是否已经存在
 	f.Update(mkFifoObj("foo", 6))
 	f.Resync()
 
@@ -349,6 +355,7 @@ func TestDeltaFIFO_HasSyncedCorrectOnDeletion(t *testing.T) {
 			t.Errorf("Expected %#v, got %#v", e, a)
 		}
 	}
+	// 必须等到第一次Replace完之后，将队列里的内容都清空，才可以
 	if f.HasSynced() {
 		t.Errorf("Expected HasSynced to be true")
 	}

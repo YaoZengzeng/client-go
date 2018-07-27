@@ -477,12 +477,14 @@ type processorListener struct {
 	pendingNotifications buffer.RingGrowing
 
 	// requestedResyncPeriod is how frequently the listener wants a full resync from the shared informer
+	// requestedResyncPeriod是listener对shared informer做一次完整的resync的时间
 	requestedResyncPeriod time.Duration
 	// resyncPeriod is how frequently the listener wants a full resync from the shared informer. This
 	// value may differ from requestedResyncPeriod if the shared informer adjusts it to align with the
 	// informer's overall resync check period.
 	resyncPeriod time.Duration
 	// nextResync is the earliest time the listener should get a full resync
+	// nextResync是下一次listener需要进行一次full resync的时间
 	nextResync time.Time
 	// resyncLock guards access to resyncPeriod and nextResync
 	resyncLock sync.Mutex
@@ -490,6 +492,7 @@ type processorListener struct {
 
 func newProcessListener(handler ResourceEventHandler, requestedResyncPeriod, resyncPeriod time.Duration, now time.Time, bufferSize int) *processorListener {
 	ret := &processorListener{
+		// nextCh和addCh的缓存大小都为0
 		nextCh:                make(chan interface{}),
 		addCh:                 make(chan interface{}),
 		handler:               handler,
@@ -509,6 +512,7 @@ func (p *processorListener) add(notification interface{}) {
 
 func (p *processorListener) pop() {
 	defer utilruntime.HandleCrash()
+	// 将p.nextCh关闭，可以通知.run()结束
 	defer close(p.nextCh) // Tell .run() to stop
 
 	var nextCh chan<- interface{}
@@ -523,14 +527,17 @@ func (p *processorListener) pop() {
 				nextCh = nil // Disable this select case
 			}
 		case notificationToAdd, ok := <-p.addCh:
+			// 如果p.addCh被关闭，则返回
 			if !ok {
 				return
 			}
 			if notification == nil { // No notification to pop (and pendingNotifications is empty)
+				// 如果没有notification等待被pop
 				// Optimize the case - skip adding to pendingNotifications
 				notification = notificationToAdd
 				nextCh = p.nextCh
 			} else { // There is already a notification waiting to be dispatched
+				// 如果已经有一个notification等待被分发了，则将新的缓存起来
 				p.pendingNotifications.WriteOne(notificationToAdd)
 			}
 		}
@@ -546,6 +553,7 @@ func (p *processorListener) run() {
 	wait.Until(func() {
 		// this gives us a few quick retries before a long pause and then a few more quick retries
 		err := wait.ExponentialBackoff(retry.DefaultRetry, func() (bool, error) {
+			// run从p.nextCh中获取下一个notification，并用相应的处理函数进行处理
 			for next := range p.nextCh {
 				switch notification := next.(type) {
 				case updateNotification:
@@ -559,6 +567,7 @@ func (p *processorListener) run() {
 				}
 			}
 			// the only way to get here is if the p.nextCh is empty and closed
+			// 只有当p.nextCh为空并关闭的时候，才能到达这里
 			return true, nil
 		})
 

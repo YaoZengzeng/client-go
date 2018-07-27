@@ -27,6 +27,7 @@ func testFifoObjectKeyFunc(obj interface{}) (string, error) {
 	return obj.(testFifoObject).name, nil
 }
 
+// 测试中将testFifoObject作为资源对象
 type testFifoObject struct {
 	name string
 	val  interface{}
@@ -79,6 +80,7 @@ func TestFIFO_requeueOnPop(t *testing.T) {
 		if obj.(testFifoObject).name != "foo" {
 			t.Fatalf("unexpected object: %#v", obj)
 		}
+		// 返回error，让item重新入库
 		return ErrRequeue{Err: nil}
 	})
 	if err != nil {
@@ -105,6 +107,7 @@ func TestFIFO_requeueOnPop(t *testing.T) {
 		if obj.(testFifoObject).name != "foo" {
 			t.Fatalf("unexpected object: %#v", obj)
 		}
+		// pop成功
 		return nil
 	})
 	if err != nil {

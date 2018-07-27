@@ -53,6 +53,7 @@ func BenchmarkListener(b *testing.B) {
 			pl.add(notification)
 		}
 	})
+	// 一直阻塞，直到收到所有的notification
 	swg.Wait() // Block until all notifications have been received
 	b.StopTimer()
 }

@@ -52,6 +52,7 @@ type KeyFunc func(obj interface{}) (string, error)
 
 // KeyError will be returned any time a KeyFunc gives an error; it includes the object
 // at fault.
+// KeyError会在KeyFunc有错误的时候返回
 type KeyError struct {
 	Obj interface{}
 	Err error

@@ -148,6 +148,8 @@ func (f *DeltaFIFO) Close() {
 // KeyOf exposes f's keyFunc, but also detects the key of a Deltas object or
 // DeletedFinalStateUnknown objects.
 func (f *DeltaFIFO) KeyOf(obj interface{}) (string, error) {
+	// 当检查DeltaFIFO的对象的key时，会先检测obj是否是一个Deltas对象或者
+	// DeletedFinalStateUnknown对象
 	if d, ok := obj.(Deltas); ok {
 		if len(d) == 0 {
 			return "", KeyError{obj, ErrZeroLengthDeltasObject}
@@ -247,6 +249,7 @@ func (f *DeltaFIFO) AddIfNotPresent(obj interface{}) error {
 // already holds the fifo lock.
 func (f *DeltaFIFO) addIfNotPresent(id string, deltas Deltas) {
 	f.populated = true
+	// 如果id存在，则不处理
 	if _, exists := f.items[id]; exists {
 		return
 	}
@@ -433,6 +436,7 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 		id := f.queue[0]
 		f.queue = f.queue[1:]
 		item, ok := f.items[id]
+		// 每次pop一个，initialPopulationCount都会递减
 		if f.initialPopulationCount > 0 {
 			f.initialPopulationCount--
 		}
@@ -459,6 +463,7 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 	f.lock.Lock()
 	defer f.lock.Unlock()
+	// keys中包含了新加入的list中的keys
 	keys := make(sets.String, len(list))
 
 	for _, item := range list {
@@ -467,6 +472,7 @@ func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 			return KeyError{item, err}
 		}
 		keys.Insert(key)
+		// 将list中的各个对象都Sync到队列中
 		if err := f.queueActionLocked(Sync, item); err != nil {
 			return fmt.Errorf("couldn't enqueue object: %v", err)
 		}
@@ -478,6 +484,7 @@ func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 			if keys.Has(k) {
 				continue
 			}
+			// 将不在新加入的list中的item设置为DeletedFinalStateUnknown
 			var deletedObj interface{}
 			if n := oldItem.Newest(); n != nil {
 				deletedObj = n.Object
@@ -511,6 +518,7 @@ func (f *DeltaFIFO) Replace(list []interface{}, resourceVersion string) error {
 			deletedObj = nil
 			glog.Infof("Key %v does not exist in known objects store, placing DeleteFinalStateUnknown marker without object", k)
 		}
+		// 统计从队列中删除的数目
 		queuedDeletions++
 		if err := f.queueActionLocked(Deleted, DeletedFinalStateUnknown{k, deletedObj}); err != nil {
 			return err
@@ -564,10 +572,12 @@ func (f *DeltaFIFO) syncKeyLocked(key string) error {
 	// we ignore the Resync for it. This is to avoid the race, in which the resync
 	// comes with the previous value of object (since queueing an event for the object
 	// doesn't trigger changing the underlying store <knownObjects>.
+	// 如果我们在做Resync()并且队列中该对象的一个事件已经在排队了，我们忽略这次的Resync
 	id, err := f.KeyOf(obj)
 	if err != nil {
 		return KeyError{obj, err}
 	}
+	// 如果id已经存在了，则返回
 	if len(f.items[id]) > 0 {
 		return nil
 	}

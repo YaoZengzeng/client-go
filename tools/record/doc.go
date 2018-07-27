@@ -15,4 +15,5 @@ limitations under the License.
 */
 
 // Package record has all client logic for recording and reporting events.
+// record包包含了记录以及汇报events的所有客户端逻辑
 package record // import "k8s.io/client-go/tools/record"
